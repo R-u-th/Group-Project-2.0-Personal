@@ -1,7 +1,7 @@
 ---
 title: "Presentation title"
 subtitle: "Presentation subtitle (if any)"
-author: "Team name <br> Connor, Kate, Ruth"
+author: "Team name <br> Connor, Kate, Ruth, Torgua"
 institute: "University of Edinburgh"
 date: "`r Sys.Date()`"
 output:
