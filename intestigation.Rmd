@@ -1,6 +1,6 @@
 ---
-title: "IDS investigation worksheet"
-author: "by Team-Name: Connor, Kate, Ruth, Torgua & User5"
+title: "IDS intestigation worksheet"
+author: "by Kate Supremacy: Connor, Kate, Ruth, Torgua & Kate"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -25,7 +25,15 @@ library(tidyverse)
 
 ```{r load-data}
 # load your data 
-
+nyweather <- read_csv("data/ny_weather.csv")
+nyweather %>% 
+  ggplot(aes(`HLY-TEMP-NORMAL`, `HLY-WIND-AVGSPD`)) + 
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se=FALSE)
+nyweather %>%
+  is.na() %>%
+  colSums()
+View(nyweather)
 
 
 

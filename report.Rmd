@@ -1,6 +1,6 @@
 ---
 title: "Project title"
-author: "by Team-Name: Connor, Kate, Ruth, Torgua & User5"
+author: "by Kate Supremacy: Connor, Kate, Ruth, Torgua & Kate"
 date: "`r Sys.Date()`"
 output: html_document
 ---
