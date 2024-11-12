@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r load-lib, message = FALSE}
 library(tidyverse)
 # Add any other libraries here
-
+library(lubridate)
 
 
 ```
@@ -26,17 +26,43 @@ library(tidyverse)
 ```{r load-data}
 # load your data 
 nyweather <- read_csv("data/ny_weather.csv")
-nyweather %>% 
-  ggplot(aes(`HLY-TEMP-NORMAL`, `HLY-WIND-AVGSPD`)) + 
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", se=FALSE)
-nyweather %>%
-  is.na() %>%
-  colSums()
+
+nyweather <- nyweather %>%
+  rename(
+    "date" = `DATE`,
+    "cool_deg_hrs" = `HLY-CLDH-NORMAL`,
+    "cloud_brkn_pct" = `HLY-CLOD-PCTBKN`,
+    "cloud_clr_pct" = `HLY-CLOD-PCTCLR`,
+    "cloud_few_pct" = `HLY-CLOD-PCTFEW`,
+    "cloud_ovrcst_pct" = `HLY-CLOD-PCTOVC`,
+    "cloud_scat_pct" = `HLY-CLOD-PCTSCT`,
+    "dewp_10" = `HLY-DEWP-10PCTL`,
+    "dewp_90" = `HLY-DEWP-90PCTL`,
+    "dewp_avg" = `HLY-DEWP-NORMAL`,
+    "heat_index_avg" = `HLY-HIDX-NORMAL`,
+    "heat_deg_hrs" = `HLY-HTDH-NORMAL`,
+    "pres_10pctl" = "HLY-PRES-10PCTL",
+    "pres_90pctl" = "HLY-PRES-90PCTL",
+    "pres_avg" = `HLY-PRES-NORMAL`,
+    "temp_10pctl" = "HLY-TEMP-10PCTL",
+    "temp_90ptcl" = "HLY-TEMP-90PCTL",
+    "temp_avg" = `HLY-TEMP-NORMAL`,
+    "wind_chill_avg" = `HLY-WCHL-NORMAL`,
+    "wind_main_dir" = "HLY-WIND-1STDIR",
+    "wind_main_pct" = "HLY-WIND-1STPCT",
+    "wind_2nd_dir" = "HLY-WIND-2NDDIR",
+    "wind_2nd_pct" = "HLY-WIND-2NDPCT",
+    "wind_spd_avg" = `HLY-WIND-AVGSPD`,
+    "pct_calm" = `HLY-WIND-PCTCLM`,
+    "wind_vector_dir" = `HLY-WIND-VCTDIR`,
+    "wind_vector_spd" = `HLY-WIND-VCTSPD`
+  ) %>% # renamed columns
+  select(-c("STATION", "NAME")) %>% # got rid of station and name as we know these
+  separate(date, into = c("day", "time"), sep = "T") # separated into day and time (might want to change variable types)
+#please also note that pressure will not change!! so is not worth looking at
+
+
 View(nyweather)
-
-
-
 ```
 
 
