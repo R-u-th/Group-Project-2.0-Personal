@@ -64,5 +64,48 @@ nyweather <- nyweather %>%
 
 View(nyweather)
 ```
+```{r}
+# Which direction is the prevailing wind most frequently in? 
+nyweather %>%
+  count(wind_main_dir) %>%
+  arrange(desc(n)) 
+# Using the frequency table and the document in the reference tab of the Google doc, the prevailing wind most frequently in the North West direction.
+
+# Which direction is the secondary wind most frequently in?
+nyweather %>%
+  count(wind_2nd_dir) %>%
+  arrange(desc(n))
+# Using the frequency table and the document in the reference tab of the Google doc, the secondary wind most frequently in the West direction.
+
+# Both the prevailing wind and the secondary winds least frequent direction is East.
+
+nyweather %>%
+  count(cool_deg_hrs) %>%
+  arrange(desc(n)) %>%
+  head(5)
+
+#Why are so many of the cooling degree hour entries -777.7? In the document in the reference tab of the Google doc it says, "-7777: a non-zero value that would round to zero". Which I am assuming has a decimal point missing (or added). Do we want to replace these entries with zeros?
+```
+```{r}
+#I am assuming that the percentages of the clouds are multiplied by 10 to get rid of decimals making them "permilleages". I will check they total 1000.
+nyweather_test <- nyweather %>%
+  mutate(
+    total_pct_of_cloud = cloud_brkn_pct + 
+      cloud_clr_pct + 
+      cloud_few_pct +
+      cloud_ovrcst_pct +
+      cloud_scat_pct)
+
+nyweather_test %>%
+  count(total_pct_of_cloud)
+
+# They don't all total to 1000 which I will assume is though rounding discrepancies.
+# Do we want to divide them by ten to make them more recognizable percentages?
+
+# I noticed that two columns look quite similar, I will put them next to each other.
+glimpse(select(nyweather, heat_index_avg, temp_avg))
+
+#Also is it in Fahrenheit? Otherwise it is very hot to be in New York! Do we want to convert it to degrees Celsius?
+```
 
 
