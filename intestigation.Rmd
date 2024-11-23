@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 # Add any other libraries here
 library(lubridate)
-
+library(tidymodels)
 
 ```
 
@@ -61,8 +61,16 @@ nyweather <- nyweather %>%
   separate(date, into = c("day", "time"), sep = "T") # separated into day and time (might want to change variable types)
 #please also note that pressure will not change!! so is not worth looking at
 
+#replacing missing data with nas
+nyweather[nyweather == -777.7] <- NA
 
-View(nyweather)
+#correcting percentage columns that are 10 times to big
+nyweather<- nyweather %>% 
+  mutate(across(c(cloud_brkn_pct,cloud_clr_pct,cloud_few_pct,cloud_ovrcst_pct,cloud_scat_pct, wind_main_pct,wind_2nd_pct), ~ .x/10))
+
+#changing temperature to degrees Celsius because Fahrenheit is completely meaningless to me
+nyweather<- nyweather %>% 
+  mutate(across(c(dewp_10,dewp_90,dewp_avg,heat_index_avg,temp_10pctl,temp_90ptcl,temp_avg,wind_chill_avg), ~ signif((5/9)*(.x-32), 3)))
 ```
 ```{r}
 # Which direction is the prevailing wind most frequently in? 
@@ -106,6 +114,178 @@ nyweather_test %>%
 glimpse(select(nyweather, heat_index_avg, temp_avg))
 
 #Also is it in Fahrenheit? Otherwise it is very hot to be in New York! Do we want to convert it to degrees Celsius?
+```
+
+```{r}
+nyweather %>%
+  summarise(
+    mean_temp_year = mean(temp_avg),
+    median_temp_year = median(temp_avg)
+  )
+```
+```{r}
+# Investigating how the average temperature effects the wind direction, more specifically the probability of it being in the west direction (including north west and south west).
+nyweather <- nyweather %>%
+  mutate(
+    wind_main_west = case_when(
+      wind_main_dir == "6" ~ "yes",
+      wind_main_dir == "7" ~ "yes",
+      wind_main_dir == "8" ~ "yes",
+      TRUE ~ "no"
+    ),
+    wind_main_west = fct_relevel(wind_main_west, "no", "yes")
+  ) # Creating a column for whether the wind is in the west direction or not.
+```
+
+```{r}
+set.seed(1234)
+nyweather_split <- initial_split(nyweather)
+nyweather_train <- training(nyweather_split)
+nyweather_test  <- testing(nyweather_split) # Splitting data into training and testing.
+
+wind_dir_rec_1 <- recipe(
+  wind_main_west ~ temp_avg,
+  data = nyweather_train  # Created a recipe.
+)
+
+wind_dir_mod_1 <- logistic_reg() %>%
+  set_engine("glm")     # Created a model.
+
+wind_dir_wflow_1 <- workflow() %>%
+  add_model(wind_dir_mod_1) %>%
+  add_recipe(wind_dir_rec_1) #Added them to a work flow.
+```
+
+```{r}
+wind_dir_fit_1 <- wind_dir_wflow_1 %>%
+  fit(data = nyweather_train)  # Applying work flow to training data.
+
+tidy(wind_dir_fit_1)  # You can see from the table below, that as the average temperature increases the smaller the logic of the probability, and therefore the smaller the probability that the wind will be in the west direction. Or in other words if it is colder it is more likely the wind will be going in the west direction (Including north west and south west direction).
+
+# The formula of the line is log(p/1-p) = 2.63 - 0.17 temp_avg, where p is the probability that the wind is in the west direction.
+```
+
+ 
+```{r}
+wind_dir_pred_1 <- predict(wind_dir_fit_1, nyweather_test, type = "prob") %>% 
+  bind_cols(nyweather_test) 
+wind_dir_pred_1 # Using fitted model to predict the testing data.
+
+wind_dir_pred_1 %>%
+  roc_curve(
+    truth = wind_main_west,
+    .pred_yes,             
+    event_level = "second"
+  ) %>%
+  autoplot() # Plotting a ROC curve
+
+wind_dir_pred_1 %>%
+  roc_auc(
+    truth = wind_main_west,
+    .pred_yes,             
+    event_level = "second"
+  ) # As seen below the ROC area is relatively close to one which is the ideal value. This means the model has fit the testing data quite well.
+```
+```{r}
+# linear regression of wind chill against heat index
+set.seed(1234)
+nyweather_split2 <- initial_split(nyweather)
+nyweather_train2 <- training(nyweather_split2)
+nyweather_test2  <- testing(nyweather_split2)
+
+wind_heat_mod <- linear_reg() %>%
+  set_engine("lm")
+
+wind_heat_rec <- recipe(
+  wind_chill_avg ~ heat_index_avg,
+  data = nyweather_train2
+)
+
+wind_heat_wflow <- workflow() %>%
+  add_model(wind_heat_mod) %>%
+  add_recipe(wind_heat_rec)
+
+wind_heat_fit <- wind_heat_wflow %>%
+  fit(data = nyweather_train2)
+
+wind_heat_pred <- predict(wind_heat_fit, nyweather_test2) %>%
+  bind_cols(nyweather_test2 %>% select(wind_chill_avg, heat_index_avg))
+
+rsq(wind_heat_pred, truth = wind_chill_avg, estimate = .pred)
+rmse(wind_heat_pred, truth = wind_chill_avg, estimate = .pred)
+```
+```{r}
+wind_heat_fit <- wind_heat_wflow %>%
+  fit(data = nyweather_train2)
+wind_heat_fit_tidy <- tidy(wind_heat_fit) 
+wind_heat_fit_aug  <- augment(wind_heat_fit, nyweather_train2) %>%
+  mutate(res_cat = ifelse(.resid > 0, TRUE, FALSE))
+wind_heat_fit_aug # Created an augmented table with the residuals.
+
+ggplot(data = wind_heat_fit_aug,
+       aes(x = heat_index_avg,
+           y = wind_chill_avg)) +
+  geom_point(aes(x = heat_index_avg, 
+                 y = wind_chill_avg,
+                 color = res_cat),
+             alpha = 0.7) + # Added the points 
+  geom_line(aes(x = heat_index_avg, 
+                y = .pred), 
+            linewidth = 1) + # Added the predication line.
+  geom_segment(mapping = aes(x = heat_index_avg, 
+                             y = wind_chill_avg,
+                             xend = heat_index_avg, 
+                             yend = .pred), 
+               color = "orange", 
+               alpha = 0.4) + # Added line connecting the predicted points to the recorded points.
+  labs(
+    title = "Wind Chill vs. Heat Index",
+    subtitle = "Residual Plot",
+    x = "Heat Index (units)",
+    y = "Wind Chill (units)"
+  ) + # Added labels
+  guides(color = FALSE) + # Remove key
+  scale_color_manual(values = c("red", "forestgreen")) # Whether residuals are positive are negative.
+```
+```{r}
+ggplot(data = wind_heat_fit_aug,
+       aes(x = heat_index_avg,
+           y = wind_chill_avg)) +
+  geom_point(aes(x = heat_index_avg, 
+                 y = wind_chill_avg,
+                 color = res_cat),
+             alpha = 0.7) +
+  geom_line(aes(x = heat_index_avg, y = .pred), linewidth = 0.75) +
+  geom_point(mapping = aes(x = heat_index_avg,
+                           y = .pred), 
+             color = "orange",
+             alpha = 0.7)+
+  geom_segment(mapping = aes(x = heat_index_avg, 
+                             y = wind_chill_avg,
+                             xend = heat_index_avg, 
+                             yend = .pred), 
+               color = "orange", 
+               alpha = 0.4) + 
+  labs(
+    title = "Wind Chill vs. Heat Index",
+    subtitle = "Residual Plot",
+    x = "Heat Index (units)",
+    y = "Wind Chill (units)"
+  ) +
+  guides(color = FALSE) +
+  scale_color_manual(values = c("maroon", "forestgreen")) + 
+  coord_cartesian(
+  xlim = c(3, 8),
+  ylim = c(0, 5)) # Same graph again just zoomed into specific point.
+```
+```{r}
+ggplot(wind_heat_fit_aug, mapping = aes(x = .pred, y = .resid)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, 
+             color = "gray", 
+             lty = "dashed") +
+  labs(x = "Predicted Wind Chill", 
+       y = "Residuals") # Residual Plot, unfortunately there looks like there is another relationship going on.
 ```
 
 
